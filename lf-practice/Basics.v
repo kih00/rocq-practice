@@ -128,8 +128,10 @@ Inductive day : Type :=
   | saturday
   | sunday.
 
+(** SF 0904. day는 Type이라는 universe에, monday는 day라는 타입에 속함 *)
+(* 기본적인 타입에 대한 introduction은 Inductive로 가능 *)
 Check (day : Type).
-Check (monday : Type).
+Check (monday : day). (* monday : Type -> 오류 발생 *)
 
 (** The new type is called [day], and its members are [monday],
     [tuesday], etc.
@@ -148,6 +150,38 @@ Definition next_working_day (d:day) : day :=
   | sunday    => monday
   end.
 
+(** SF 0904. 각 요소의 타입 확인해보기 *)
+Check friday.
+Check (next_working_day friday).
+Check monday.
+Check (next_working_day).
+Check (next_working_day : day -> day). (* ... : Type으로 하면 오류 *)
+Check ((fun d: day => monday) : day -> day). (* day -> day 타입에 대한 introduction은 fun으로 가능 *)
+Check ((fun b: bool =>
+      match b with
+      | true => monday
+      | false => tuesday
+      end
+    ) : bool -> day). (* function의 introduction에 match도 사용 가능 *)
+Check ((fun f : bool -> day => f(true)) : (bool -> day) -> day).
+
+(** SF 0906. 함수에 대한 introduction, elimination, 이름 붙이기(Definition) *)
+Definition sf0906 : bool -> day :=
+  fun b: bool =>
+    match b with
+    | true => monday
+    | false => tuesday
+    end.
+Definition sf0906' (b: bool) : day := (* sf0906' b := ... 이런 식으로 써줘도 알아서 추론 가능 *)
+  match b with
+  | true => monday
+  | false => tuesday
+  end.
+Print sf0906.
+Print sf0906'.
+Compute (sf0906 false).
+Compute (sf0906' true).
+
 (** Note that the argument and return types of this function are
     explicitly declared here.  Like most functional programming
     languages, Coq can often figure out these types for itself when
@@ -161,6 +195,32 @@ Definition next_working_day (d:day) : day :=
 
 Compute (next_working_day friday).
 (* ==> monday : day *)
+(** SF 0909. function reduction
+function introduction과 elimination이 만나는 화학 반응 -> d가 friday로 바뀜
+-- 계산 과정 --
+(fun d: day =>
+  match d with
+  | monday    => tuesday
+  | tuesday   => wednesday
+  | wednesday => thursday
+  | thursday  => friday
+  | friday    => monday
+  | saturday  => monday
+  | sunday    => monday
+  end.) friday
+==>
+match friday with
+| monday    => tuesday
+| tuesday   => wednesday
+| wednesday => thursday
+| thursday  => friday
+| friday    => monday
+| saturday  => monday
+| sunday    => monday
+end.
+==>
+monday
+ *)
 
 Compute (next_working_day (next_working_day saturday)).
 (* ==> tuesday : day *)
@@ -185,6 +245,16 @@ Example test_next_working_day:
     this: *)
 
 Proof. simpl. reflexivity.  Qed.
+
+(** SF 0909. Proof 설명 & Example 확인 *)
+(* 위의 Example + Proof는 아래의 Definition과 같은 의미 *)
+Definition test_next_working_day':
+  (next_working_day (next_working_day saturday)) = tuesday
+  :=
+  eq_refl.
+
+Print test_next_working_day.
+Print test_next_working_day'.
 
 (** The details are not important just now, but essentially this
     little script can be read as "The assertion we've just made can be
@@ -238,6 +308,39 @@ Definition andb (b1:bool) (b2:bool) : bool :=
   | false => false
   end.
 
+(** SF 0909. andb의 타입은 bool -> (bool -> bool)임
+즉, bool을 받으면 bool -> bool 타입의 함수를 리턴하고, 여기서 한번 더 bool을 받는 것
+-> 아래의 함수와 같음 *)
+Definition andb_sf0909 : bool -> (bool -> bool) :=
+  (fun b1 : bool => (fun b2 : bool =>
+    match b1 with
+    | true => b2
+    | false => false
+    end
+  ) : bool -> bool).
+Print andb. Check andb.
+Print andb_sf0909. Check andb_sf0909.
+
+(** SF 0909. 계산적으로는 다른 andb *)
+Definition andb_sf0909' (b1:bool) :=
+  match b1 with
+  | true => (fun b2 => b2)
+  | false => (fun b2 => false)
+  end.
+(* Goal andb = andb_sf0909'. reflexivity.
+위의 reflexivity는 실패함  그러나 논리적으로는 같은 함수이므로, 다른 방식으로 증명은 가능함.*)
+(* Require Import Coq.Logic.FunctionalExtensionality.
+
+Theorem andb_andb_sf0909'_eq : andb = andb_sf0909'.
+Proof.
+  extensionality b1.
+  extensionality b2.
+  destruct b1.
+  - simpl. reflexivity.
+  - simpl. reflexivity.
+Qed. 
+위의 코드는 클로드가 알려준 방법 *)
+
 Definition orb (b1:bool) (b2:bool) : bool :=
   match b1 with
   | true => true
@@ -272,6 +375,7 @@ Proof. simpl. reflexivity.  Qed.
 
 Notation "x && y" := (andb x y).
 Notation "x || y" := (orb x y).
+(** 함수를 다른 표현 방법으로 표현하는 방법. *)
 
 Example test_orb5:  false || false || true = true.
 Proof. simpl. reflexivity. Qed.
@@ -316,6 +420,8 @@ Inductive bw : Type :=
   | bw_black
   | bw_white.
 
+(** SF 0909. constructor 2개짜리는 if then else 사용 가능. 별로 안 중요해서 넘어감. *)
+
 Definition invert (x: bw) : bw :=
   if x then bw_white
   else bw_black.
@@ -346,17 +452,18 @@ Compute (invert bw_white).
     skip over [simpl] and go directly to [reflexivity]. We'll
     explain this phenomenon later in the chapter. *)
 
-Definition nandb (b1:bool) (b2:bool) : bool
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Definition nandb (b1:bool) (b2:bool) : bool :=
+  if b1 then negb' b2
+  else true.
 
 Example test_nandb1:               (nandb true false) = true.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. simpl. reflexivity. Qed.
 Example test_nandb2:               (nandb false false) = true.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. simpl. reflexivity. Qed.
 Example test_nandb3:               (nandb false true) = true.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. simpl. reflexivity. Qed.
 Example test_nandb4:               (nandb true true) = false.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. simpl. reflexivity. Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard (andb3)
@@ -365,17 +472,20 @@ Example test_nandb4:               (nandb true true) = false.
     return [true] when all of its inputs are [true], and [false]
     otherwise. *)
 
-Definition andb3 (b1:bool) (b2:bool) (b3:bool) : bool
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Definition andb3 (b1:bool) (b2:bool) (b3:bool) : bool :=
+  if b1 then
+    if b2 then b3
+    else false
+  else false.
 
 Example test_andb31:                 (andb3 true true true) = true.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. simpl. reflexivity. Qed.
 Example test_andb32:                 (andb3 false true true) = false.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. simpl. reflexivity. Qed.
 Example test_andb33:                 (andb3 true false true) = false.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. simpl. reflexivity. Qed.
 Example test_andb34:                 (andb3 true true false) = false.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. simpl. reflexivity. Qed.
 (** [] *)
 
 (* ================================================================= *)
@@ -428,6 +538,10 @@ Inductive color : Type :=
   | black
   | white
   | primary (p : rgb).
+
+(** SF 0909. primary의 타입 *)
+Check color. Check black. Check primary. Check red. Check primary red.
+Print color. Print primary.
 
 (** Let's look at this in a little more detail.
 
@@ -489,6 +603,20 @@ Definition isred (c : color) : bool :=
   | primary red => true
   | primary _ => false
   end.
+
+(** SF 0909. 실제 primitive한 isred *)
+Definition isred' (c : color) : bool :=
+  match c with
+  | black => false
+  | white => false
+  | primary p => match p with
+                 | red => true
+                 | green => false
+                 | blue => false
+                 end
+  end.
+
+Goal isred = isred'. Proof. reflexivity. Qed.
 
 (** The pattern "[primary _]" here is shorthand for "the constructor
     [primary] applied to any [rgb] constructor except [red]." *)
@@ -559,6 +687,10 @@ Compute (all_zero (bits B0 B0 B0 B0)).
 (* ===> true : bool *)
 
 End TuplePlayground.
+
+(** SF 0911. playground 문법 *)
+(* Check all_zero. <- 에러남 *)
+Check TuplePlayground.all_zero.
 
 (* ================================================================= *)
 (** ** Numbers *)
@@ -646,6 +778,10 @@ Inductive otherNat : Type :=
   | stop
   | tick (foo : otherNat).
 
+(** SF 0911. axiom: 그냥 선언하면 참으로 가정됨 -> 잘못된 증명이 가능할 수 있으니 주의. *)
+(* Axiom ax : nat = otherNat.
+Axiom false : False. *)
+
 (** The _interpretation_ of these marks arises from how we use them to
     compute. *)
 
@@ -676,6 +812,11 @@ End NatPlayground.
 
 Check (S (S (S (S O)))).
 (* ===> 4 : nat *)
+
+(** SF 0911. 자연수 notation *)
+Set Printing All.
+Check 100. (* S (S (S (S (S (... (S O)...))))) 형태로 출력 *)
+Unset Printing All.
 
 Definition minustwo (n : nat) : nat :=
   match n with
@@ -724,6 +865,76 @@ Fixpoint even (n:nat) : bool :=
   | S (S n') => even n'
   end.
 
+(** SF 0911. Fixpoint 정의의 조건 *)
+(* 위 even 함수의 => even n'을 even (S n')으로 바꾸면 통과할 수 없음 *)
+(** SF 0911. syntactic sugar for fixpoint *)
+Definition even_sf0911 : nat -> bool :=
+  (fix self n :=
+    match n with
+    | O       => true
+    | S O     => false
+    | S (S n') => self n'
+    end
+  ).
+(* fix에서는 fun에서랑 다르게 뜬금없이 :=를 사용 -> 뺨아리 마려운 설계다
+사실 fix 쓰고 자기 언급 안해도 됨, 근데 그러면 fun ... => ... 사용 가능. *)
+Example test_even: even = even_sf0911.
+Proof. simpl. reflexivity. Qed.
+
+(** SF 0909. mutual recursion *)
+Fixpoint even_mr1 (n : nat) : bool :=
+  match n with
+  | O       => true
+  | S n'    => odd_mr1 n'
+  end
+with odd_mr1 (n : nat) : bool :=
+  match n with
+  | O       => true
+  | S n'    => even_mr1 n'
+  end.
+
+Fixpoint even_odd_mr (n : nat) : bool * bool :=
+  match n with
+  | O => (false, false)
+  | S n' => match even_odd_mr n' with
+            | (e, o) => (negb e, negb o)
+            end
+  end.
+
+Fixpoint even_mr2 (n : nat) : bool :=
+  let odd := (fix self n :=
+      match n with
+      | O => false
+      | S n' => even n'
+      end)
+  in
+  match n with
+  | O => true
+  | S n' => odd n'
+  end.
+
+Definition _even (odd: nat -> bool) (n: nat) : bool :=
+  match n with
+  | O => true
+  | S n' => odd n'
+  end.
+
+Definition _odd (even: nat -> bool) (n: nat) : bool :=
+  match n with
+  | O => false
+  | S n' => even n'
+  end.
+
+Fixpoint even_mr3 (n: nat) : bool :=
+  _even (_odd even_mr3) n.
+
+Fixpoint odd_mr3 (n : nat) : bool :=
+  _odd (_even odd_mr3) n.
+
+Compute even_mr3 100. Compute even_mr3 101.
+Compute odd_mr3 100. Compute odd_mr3 101.
+(** mutual recursion 끝 *)
+
 (** We could define [odd] by a similar [Fixpoint] declaration, but
     here is a simpler way: *)
 
@@ -744,11 +955,23 @@ Proof. simpl. reflexivity.  Qed.
 
 Module NatPlayground2.
 
-Fixpoint plus (n : nat) (m : nat) : nat :=
+Fixpoint plus (n : nat) (m : nat) : nat := (* n m : nat 이런 식으로도 가능(sugar) *)
   match n with
   | O => m
   | S n' => S (plus n' m)
   end.
+
+(** Sf 0911. 다른 방식으로 정의하기 *)
+Definition plus_sf0911 : nat -> (nat -> nat) :=
+  (fix plus n := (* self라고 많이 씀 *)
+    (fun m =>
+      match n with
+      | O => m
+      | S n' => S (plus n' m)
+    end)
+).
+Compute plus 5 9.
+Compute plus_sf0911 5 9.
 
 (** Adding three to two gives us five (whew!): *)
 
@@ -816,13 +1039,16 @@ Fixpoint exp (base power : nat) : nat :=
     factorial was not found in the current environment," it means
     you've forgotten the [:=]. *)
 
-Fixpoint factorial (n:nat) : nat
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Fixpoint factorial (n:nat) : nat :=
+  match n with
+  | O => S O
+  | S n' => mult n (factorial n')
+  end.
 
 Example test_factorial1:          (factorial 3) = 6.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. simpl. reflexivity. Qed.
 Example test_factorial2:          (factorial 5) = (mult 10 12).
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. simpl. reflexivity. Qed.
 (** [] *)
 
 (** Again, we can make numerical expressions easier to read and write
@@ -915,17 +1141,17 @@ Proof. simpl. reflexivity.  Qed.
     function.  (It can be done with just one previously defined
     function, but you can use two if you want.) *)
 
-Definition ltb (n m : nat) : bool
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Definition ltb (n m : nat) : bool :=
+  negb (leb m n).
 
 Notation "x <? y" := (ltb x y) (at level 70) : nat_scope.
 
 Example test_ltb1:             (ltb 2 2) = false.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. simpl. reflexivity.  Qed.
 Example test_ltb2:             (ltb 2 4) = true.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. simpl. reflexivity.  Qed.
 Example test_ltb3:             (ltb 4 2) = false.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. simpl. reflexivity.  Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -944,6 +1170,60 @@ Example test_ltb3:             (ltb 4 2) = false.
 Example plus_1_1 : 1 + 1 = 2.
 Proof. simpl. reflexivity. Qed.
 
+(** SF 0916. 1 + 1 = 2 해설 *)
+Print eq.
+Inductive eq' (A : Type) (x : A) : A -> Prop :=
+  | eq_refl' : eq' A x x
+  .
+Print eq'.
+(*
+eq는 A 타입의 원소 2개를 받아 어떠한 set을 만들어냄
+이때, 두 원소가 같으면 비어 있지 않은 set, 다르면 빈 set을 만듦
+이때 Proposition -> Type (수학적으로 set), proof -> element로 해석
+즉, 명제가 참 <=> 비어 있지 않은 집합, 명제가 거짓 <=> 빈 집합
+타당한 증명 <=> 집합의 원소, 증명이 없음 <=> 집합이 비어 있음 *)
+(* 특이사항: Set과 Proposition의 해석이 둘 다 Type으로 해석됨
+elmt:Set -> prog:Type
+proof:Proposition -> prog:Type
+단, 이렇게 보면 헷갈릴 수 있으므로 Rocq에서는 proposition을 `Prop`으로 선언 *)
+(* 아래와 같이 타입 확인 가능: eq는 set, eq_refl은 set의 element *)
+Check (@eq nat 2 2 : Type).
+Check (@eq_refl nat 2 : @eq nat 2 2). (* ... : Type은 오류 *)
+
+
+(** SF 0916. 다른 1 + 1 = 2 *)
+Check @eq_refl.
+Definition plus_1_1' : 1 + 1 = 2 := @eq_refl nat (1+0+1). (* @eq nat (1+1) 2 = @eq_refl nat (1+0+1) *)
+Print plus_1_1'.
+Example plus_1_1'' : @eq nat (1 + 1) 2.
+Proof. simpl. reflexivity. Qed.
+
+(** SF 0916. eq의 한계. *)
+(* Definition gee (n : nat) : (n + 1) = (1 + n) := @eq_refl nat (n + 1). *)
+(* 실패함 *)
+Require Import Lia.
+Definition sf0916 (n : nat) : (n + 1) = (1 + n).
+nia.
+Qed.
+Print sf0916.
+(* 라이브러리 이용 시 가능. *)
+
+Lemma sf0916' (n : nat) : n + 1 = 1 + n.
+Proof.
+  induction n.
+  - simpl. reflexivity.
+  - simpl. rewrite IHn. simpl. reflexivity.
+Qed.
+Print sf0916'.
+(* 귀납법으로 직접 증명도 가능. *)
+
+(** SF 0916. 잘못된 명제 *)
+Definition wrong_prop := 1 + 1 = 3.
+Check wrong_prop.
+Lemma try_prove : wrong_prop.
+Proof. simpl. (* reflexivity. *) Abort.
+
+
 (**   The same sort of "proof by simplification" can be used to
     establish more interesting properties as well.  For example, the
     fact that [0] is a "neutral element" for [+] on the left can be
@@ -951,9 +1231,27 @@ Proof. simpl. reflexivity. Qed.
     what [n] is -- a fact that can be read off directly from the
     definition of [plus]. *)
 
+Require Import Utf8.
+
 Theorem plus_O_n : forall n : nat, 0 + n = n.
 Proof.
   intros n. simpl. reflexivity.  Qed.
+
+(** Sf 0916. 수학 기호 써서 표현하기 *)
+Theorem plus_0_n_sf0916 : ∀ n : nat, 0 + n = n. (* \forall 하면 됨 *)
+Proof.
+  intros n. simpl. reflexivity. Qed.
+
+(** SF 0918. 반대 식을 증명 *)
+Theorem plus_n_0' : ∀ n : nat, n + 0 = n.
+Proof.
+  intros n. simpl.
+  induction n.
+  - simpl. reflexivity.
+  - simpl. rewrite IHn. reflexivity.
+Qed.
+Print plus_n_0'.
+
 
 (** (You may notice that the above statement looks different if
     you look at the [.v] file in your IDE than it does if you view the
@@ -1089,7 +1387,13 @@ Proof.
 Theorem plus_id_exercise : forall n m o : nat,
   n = m -> m = o -> n + m = m + o.
 Proof.
-  (* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) 
+  intros n m o.
+  intros H I.
+  rewrite H.
+  rewrite I.
+  reflexivity.
+Qed.
 (** [] *)
 
 (** The [Admitted] command tells Coq that we want to skip trying
@@ -1132,6 +1436,11 @@ Proof.
   rewrite <- mult_n_O.
   reflexivity. Qed.
 
+(** SF 0918. mult_n_0에 p, q 등 인자를 달면 rewrite 대상을 확실하게 지정 가능.
+예: rewrite <- (mult_n_O p).
+아니면 그냥 휴리스틱하게 지정 *)
+(* proof by rewriting: equality에 대한 reduction principle이다. *)
+
 (** **** Exercise: 1 star, standard (mult_n_1)
 
     Use [mult_n_Sm] and [mult_n_0] to prove the following
@@ -1140,7 +1449,11 @@ Proof.
 Theorem mult_n_1 : forall p : nat,
   p * 1 = p.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros p.
+  rewrite <- mult_n_Sm.
+  rewrite <- mult_n_O.
+reflexivity. Qed.
 
 (** [] *)
 
@@ -1184,6 +1497,15 @@ Proof.
   intros n. destruct n as [| n'] eqn:E.
   - reflexivity.
   - reflexivity.   Qed.
+
+(** SF 0918. 교수님의 설명 *)
+Theorem plus_1_neq_0_sf0918 : ∀ n : nat, (n + 1) =? 0 = false.
+Proof.
+  intros n. simpl. destruct n.
+  - simpl. reflexivity.
+  - simpl plus. simpl eqb. reflexivity. (* 그냥 simpl. reflexivity. 해도 됨 *)
+Qed.
+(* 위에위에 eqn:E -> 지금은 필요 없는 정보인데, 나중에 'n=(해당케이스 값)인 경우'라는 정보를 읽지 않도록 해줌 *)
 
 (** The [destruct] generates _two_ subgoals, which we must then
     prove, separately, in order to get Coq to accept the theorem.
@@ -1279,6 +1601,11 @@ Proof.
     + reflexivity.
 Qed.
 
+(** SF 0918. 더 짧은 버전. *)
+Theorem andb_commutative_sf0918 : ∀ b c, andb b c = andb c b.
+Proof.
+intros b c. destruct b,c; reflexivity. Qed.
+
 (** Each pair of calls to [reflexivity] corresponds to the
     subgoals that were generated after the execution of the [destruct c]
     line right above it. *)
@@ -1340,7 +1667,16 @@ Qed.
 Theorem andb_true_elim2 : forall b c : bool,
   andb b c = true -> c = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros b c.
+  destruct b eqn:Eb.
+  - destruct c eqn:Ec.
+    + simpl. reflexivity.
+    + simpl. intros H. rewrite H. reflexivity. (* false = true가 H이므로 뒤따라오는 모든 명제는 false를 true로 바꿔(또는 반대로 바꿔) 참으로 생각할 수 있음 *)
+  - destruct c eqn:Ec.
+    + simpl. reflexivity.
+    + simpl. intros H. rewrite H. reflexivity.
+Qed.
 (** [] *)
 
 (** Before closing the chapter, let's mention one final
@@ -1381,7 +1717,11 @@ Qed.
 Theorem zero_nbeq_plus_1 : forall n : nat,
   0 =? (n + 1) = false.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros [|n].
+  - reflexivity.
+  - reflexivity.
+Qed.
 (** [] *)
 
 (* ================================================================= *)
@@ -1466,9 +1806,17 @@ Fixpoint plus' (n : nat) (m : nat) : nat :=
     homework assignment, make sure you comment out your solution so
     that it doesn't cause Coq to reject the whole file!) *)
 
-(* FILL IN HERE
-
-    [] *)
+(* FILL IN HERE *)
+(* Fixpoint rejected (m n : nat) : nat :=
+  match m, n with
+  | O, n => S n
+  | S m', O => rejected m' (S O)
+  | S m', S n' => rejected m' (rejected (S m') n')
+  end. *)
+(* Fixpoint rejected2 (n : nat) : nat :=
+  if 100 <? n then n - 10
+  else rejected2 (rejected2 (n + 11)). *)
+(** [] *)
 
 (* ################################################################# *)
 (** * More Exercises *)
@@ -1486,8 +1834,12 @@ Theorem identity_fn_applied_twice :
   (forall (x : bool), f x = x) ->
   forall (b : bool), f (f b) = b.
 Proof.
-  (* FILL IN HERE *) Admitted.
-
+  (* FILL IN HERE *)
+  intros f H b.
+  rewrite H.
+  rewrite H.
+  reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard (negation_fn_applied_twice)
@@ -1497,6 +1849,18 @@ Proof.
     function [f] has the property that [f x = negb x]. *)
 
 (* FILL IN HERE *)
+Theorem negation_fn_applied_twice :
+  ∀ (f : bool -> bool),
+  (∀ (x : bool), f x = negb x) ->
+  ∀ (b : bool), f (f b) = b.
+Proof.
+  intros f H b.
+  rewrite H.
+  rewrite H.
+  destruct b eqn:E.
+  - reflexivity.
+  - reflexivity.
+Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_negation_fn_applied_twice : option (nat*string) := None.
@@ -1516,7 +1880,12 @@ Theorem andb_eq_orb :
   (andb b c = orb b c) ->
   b = c.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros b c.
+  destruct b eqn:Eb.
+  - simpl. intros H. rewrite H. reflexivity.
+  - simpl. intros H. rewrite <- H. reflexivity.
+Qed.
 
 (** [] *)
 
@@ -1619,7 +1988,9 @@ Compute letter_comparison B F.
 Theorem letter_comparison_Eq :
   forall l, letter_comparison l l = Eq.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  destruct l; reflexivity.
+Qed.
 (** [] *)
 
 (** We can follow the same strategy to define the comparison operation
@@ -1651,26 +2022,35 @@ Definition modifier_comparison (m1 m2 : modifier) : comparison :=
     possibilities. *)
 
 Definition grade_comparison (g1 g2 : grade) : comparison
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *)
+  :=
+  match g1, g2 with
+  | Grade l1 m1, Grade l2 m2 =>
+    match letter_comparison l1 l2 with
+    | Lt => Lt
+    | Gt => Gt
+    | Eq => modifier_comparison m1 m2
+    end
+  end.
 
 (** The following "unit tests" of your [grade_comparison] function
     should pass once you have defined it correctly. *)
 
 Example test_grade_comparison1 :
   (grade_comparison (Grade A Minus) (Grade B Plus)) = Gt.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. reflexivity. Qed.
 
 Example test_grade_comparison2 :
   (grade_comparison (Grade A Minus) (Grade A Plus)) = Lt.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. reflexivity. Qed.
 
 Example test_grade_comparison3 :
   (grade_comparison (Grade F Plus) (Grade F Plus)) = Eq.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. reflexivity. Qed.
 
 Example test_grade_comparison4 :
   (grade_comparison (Grade B Minus) (Grade C Plus)) = Gt.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) Proof. reflexivity. Qed.
 
 (** [] *)
 
@@ -1728,7 +2108,15 @@ Theorem lower_letter_lowers:
     letter_comparison F l = Lt ->
     letter_comparison (lower_letter l) l = Lt.
 Proof.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *)
+  intros l.
+  destruct l.
+  - simpl. intros H. reflexivity.
+  - simpl. intros H. reflexivity.
+  - simpl. intros H. reflexivity.
+  - simpl. intros H. reflexivity.
+  - simpl. intros H. rewrite H. reflexivity.
+Qed.
 
 (** [] *)
 
@@ -1750,49 +2138,60 @@ Proof.
 
     Our solution is under 10 lines of code total. *)
 Definition lower_grade (g : grade) : grade
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *)
+  :=
+  match g with
+  | Grade l m =>
+    match m with
+    | Plus => Grade l Natural
+    | Natural => Grade l Minus
+    | Minus => match l with
+      | F => g | _ => Grade (lower_letter l) Plus
+      end
+    end
+  end.
 
 Example lower_grade_A_Plus :
   lower_grade (Grade A Plus) = (Grade A Natural).
 Proof.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) reflexivity. Qed.
 
 Example lower_grade_A_Natural :
   lower_grade (Grade A Natural) = (Grade A Minus).
 Proof.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) reflexivity. Qed.
 
 Example lower_grade_A_Minus :
   lower_grade (Grade A Minus) = (Grade B Plus).
 Proof.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) reflexivity. Qed.
 
 Example lower_grade_B_Plus :
   lower_grade (Grade B Plus) = (Grade B Natural).
 Proof.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) reflexivity. Qed.
 
 Example lower_grade_F_Natural :
   lower_grade (Grade F Natural) = (Grade F Minus).
 Proof.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) reflexivity. Qed.
 
 Example lower_grade_twice :
   lower_grade (lower_grade (Grade B Minus)) = (Grade C Natural).
 Proof.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) reflexivity. Qed.
 
 Example lower_grade_thrice :
   lower_grade (lower_grade (lower_grade (Grade B Minus))) = (Grade C Minus).
 Proof.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) reflexivity. Qed.
 
 (** Coq makes no distinction between an [Example] and a [Theorem]. We
     state the following as a [Theorem] only as a hint that we will use
     it in proofs below. *)
 Theorem lower_grade_F_Minus : lower_grade (Grade F Minus) = (Grade F Minus).
 Proof.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) reflexivity. Qed.
 
 (* GRADE_THEOREM 0.25: lower_grade_A_Plus *)
 (* GRADE_THEOREM 0.25: lower_grade_A_Natural *)
@@ -1823,7 +2222,18 @@ Theorem lower_grade_lowers :
     grade_comparison (Grade F Minus) g = Lt ->
     grade_comparison (lower_grade g) g = Lt.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros [l m] H.
+  destruct m.
+  - simpl. rewrite (letter_comparison_Eq l). reflexivity.
+  - simpl. rewrite (letter_comparison_Eq l). reflexivity.
+  - destruct l.
+    + reflexivity.
+    + reflexivity.
+    + reflexivity.
+    + reflexivity.
+    + simpl in H. simpl. rewrite H. reflexivity.
+Qed.
 
 (** [] *)
 
@@ -1879,7 +2289,12 @@ Theorem no_penalty_for_mostly_on_time :
     (late_days <? 9 = true) ->
     apply_late_policy late_days g = g.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros ld g H.
+  rewrite apply_late_policy_unfold.
+  rewrite H.
+  reflexivity.
+Qed.
 
 (** [] *)
 
@@ -1893,7 +2308,12 @@ Theorem grade_lowered_once :
     (late_days <? 17 = true) ->
     (apply_late_policy late_days g) = (lower_grade g).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros ld g H1 H2.
+  rewrite apply_late_policy_unfold.
+  rewrite H1. rewrite H2.
+  reflexivity.
+Qed.
 
 (** [] *)
 End LateDays.
@@ -1939,10 +2359,20 @@ Inductive bin : Type :=
     binary numbers to unary numbers. *)
 
 Fixpoint incr (m:bin) : bin
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *) :=
+  match m with
+  | Z => B1 Z
+  | B0 n => B1 n
+  | B1 n => B0 (incr n)
+  end.
 
 Fixpoint bin_to_nat (m:bin) : nat
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *) :=
+  match m with
+  | Z => O
+  | B0 n => (S (S O)) * (bin_to_nat n)
+  | B1 n => (S (S O)) * (bin_to_nat n) + (S O)
+  end.
 
 (** The following "unit tests" of your increment and binary-to-unary
     functions should pass after you have defined those functions correctly.
@@ -1951,24 +2381,24 @@ Fixpoint bin_to_nat (m:bin) : nat
     next chapter. *)
 
 Example test_bin_incr1 : (incr (B1 Z)) = B0 (B1 Z).
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) simpl. reflexivity. Qed.
 
 Example test_bin_incr2 : (incr (B0 (B1 Z))) = B1 (B1 Z).
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) simpl. reflexivity. Qed.
 
 Example test_bin_incr3 : (incr (B1 (B1 Z))) = B0 (B0 (B1 Z)).
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) simpl. reflexivity. Qed.
 
 Example test_bin_incr4 : bin_to_nat (B0 (B1 Z)) = 2.
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) simpl. reflexivity. Qed.
 
 Example test_bin_incr5 :
         bin_to_nat (incr (B1 Z)) = 1 + bin_to_nat (B1 Z).
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) simpl. reflexivity. Qed.
 
 Example test_bin_incr6 :
         bin_to_nat (incr (incr (B1 Z))) = 2 + bin_to_nat (B1 Z).
-(* FILL IN HERE *) Admitted.
+(* FILL IN HERE *) simpl. reflexivity. Qed.
 
 (** [] *)
 

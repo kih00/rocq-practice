@@ -826,6 +826,14 @@ Fixpoint fold {X Y: Type} (f : X->Y->Y) (l : list X) (b : Y)
   | h :: t => f h (fold f t b)
   end.
 
+(** SF 0930. fold 순서 바꾸기 *)
+Fixpoint fold' {X Y: Type} (f : Y->X->Y) (b : Y) (l : list X)
+                          : Y :=
+  match l with
+  | nil => b
+  | h :: t => fold' f (f b h) t
+  end.
+
 (** Intuitively, the behavior of the [fold] operation is to
     insert a given binary operator [f] between every pair of elements
     in a given list.  For example, [ fold plus [1;2;3;4] ] intuitively
@@ -885,12 +893,25 @@ Proof. reflexivity. Qed.
 Definition constfun {X: Type} (x: X) : nat -> X :=
   fun (k:nat) => x.
 
+(** SF 0930. 타입 추론 *)
+Definition constfun' {X: Type} (x: X) : _ -> X :=
+  fun (k:nat) => x.
+(* constfun 정의의 nat -> X의 nat이랑 k:nat의 nat이랑 둘 중에 하나는 빼도 됨 *)
+
 Definition ftrue := constfun true.
 
 Example constfun_example1 : ftrue 0 = true.
 Proof. reflexivity. Qed.
 
 Example constfun_example2 : (constfun 5) 99 = 5.
+Proof. reflexivity. Qed.
+
+(** SF 0930. const funciton의 polymorphism *)
+(* 모든 타입에 대한 const funtion을 만들고 싶으면 아래처럼 하면 됨(단 쓸때는 타입 명시가 필요) *)
+Definition constfun_all_type T {X: Type} (x: X) : T -> X :=
+  fun _ => x.
+Definition ffalse := constfun_all_type (list nat) false.
+Example constfun_all_type_ex1 : ffalse [0; 1] = false.
 Proof. reflexivity. Qed.
 
 (** In fact, the multiple-argument functions we have already

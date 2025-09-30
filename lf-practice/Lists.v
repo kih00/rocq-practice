@@ -131,14 +131,18 @@ Proof.
 Theorem snd_fst_is_swap : forall (p : natprod),
   (snd p, fst p) = swap_pair p.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros p. destruct p as [n m]. simpl. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (fst_swap_is_snd) *)
 Theorem fst_swap_is_snd : forall (p : natprod),
   fst (swap_pair p) = snd p.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros p. destruct p as [n m]. simpl. reflexivity.
+Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -220,6 +224,9 @@ Fixpoint repeat (n count : nat) : natlist :=
   | S count' => n :: (repeat n count')
   end.
 
+(** SF 0923. *)
+Compute repeat 42 5.
+
 (* ----------------------------------------------------------------- *)
 (** *** Length *)
 
@@ -230,6 +237,9 @@ Fixpoint length (l:natlist) : nat :=
   | nil => O
   | h :: t => S (length t)
   end.
+
+(** SF 0923. *)
+Compute length [1;2;3;4;5;6;7].
 
 (* ----------------------------------------------------------------- *)
 (** *** Append *)

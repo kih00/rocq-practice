@@ -1,0 +1,15 @@
+# Coq build artifacts
+*.vo
+*.glob
+*.vos
+*.vok
+.*.aux
+
+# Editor backup files
+*~
+*.bak
+
+.DS_store
+.vscode/*
+.env
+build/

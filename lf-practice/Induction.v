@@ -194,6 +194,27 @@ Abort.
     another where we must show [P(n') -> P(S n')].  Here's how this works
     for the theorem at hand: *)
 
+(** SF 0923. induction의 원리 직접 알아보기. *)
+Fixpoint my_nat_ind
+  (P: nat -> Prop) (pf_base: P 0) (pf_step: forall n, P n -> P (S n)) (n: nat) : P n
+  :=
+  match n with
+  | 0 => pf_base
+  | S n' => pf_step n' (my_nat_ind P pf_base pf_step n')
+  end.
+
+Definition my_nat_ind'
+  (P: nat -> Prop) (pf_base: P 0) (pf_step: forall n, P n -> P (S n)) (n: nat) : P n.
+Proof.
+  revert n. fix self 1.
+  intros. destruct n.
+  - apply pf_base.
+  - apply pf_step. apply self.
+Qed.
+(* 위 원리로 자연수의 induction principle을 증명할 수 있음
+이 증명을 위해서는 값과 함수에 대한 introduction/elimination 4가지만 믿으면 됨
+반면 실제 수학 체계는 ZFC 뭐 한 10개 되는걸 믿어야 되니 우리가 더 우월함 *)
+
 Theorem add_0_r : forall n:nat, n + 0 = n.
 Proof.
   intros n. induction n as [| n' IHn'].
@@ -242,22 +263,38 @@ Proof.
 Theorem mul_0_r : forall n:nat,
   n * 0 = 0.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros n. induction n as [|n' IHn'].
+  - simpl. reflexivity.
+  - simpl. rewrite -> IHn'. reflexivity. (* simpl: S n' * 0 = 0 + n' * 0 *)
+Qed.
 
 Theorem plus_n_Sm : forall n m : nat,
   S (n + m) = n + (S m).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros n. induction n as [|n' IHn'].
+  - simpl. reflexivity.
+  - simpl. intros m. rewrite -> IHn'. reflexivity.
+Qed. 
 
 Theorem add_comm : forall n m : nat,
   n + m = m + n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros n. induction n as [|n' IHn'].
+  - intros m. simpl. rewrite add_0_r. reflexivity.
+  - intros m. simpl. rewrite IHn'. rewrite plus_n_Sm. reflexivity.
+Qed.
 
 Theorem add_assoc : forall n m p : nat,
   n + (m + p) = (n + m) + p.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros n. induction n as [|n' IHn'].
+  - simpl. reflexivity.
+  - simpl. intros m p. rewrite IHn'. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (double_plus)
@@ -274,7 +311,11 @@ Fixpoint double (n:nat) :=
 
 Lemma double_plus : forall n, double n = n + n .
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros n. induction n as [|n' IHn'].
+  - simpl. reflexivity.
+  - simpl. rewrite IHn'. rewrite plus_n_Sm. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (eqb_refl)
@@ -284,7 +325,11 @@ Proof.
 Theorem eqb_refl : forall n : nat,
   (n =? n) = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros n. induction n as [|n' IHn'].
+  - simpl. reflexivity.
+  - simpl. rewrite IHn'. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (even_S)
@@ -299,7 +344,13 @@ Proof.
 Theorem even_S : forall n : nat,
   even (S n) = negb (even n).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros n. induction n as [|n' IHn'].
+  - simpl. reflexivity.
+  - simpl. simpl in IHn'.
+    rewrite IHn'. rewrite negb_involutive.
+    reflexivity.
+Qed.
 (** [] *)
 
 (* ################################################################# *)
