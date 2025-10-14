@@ -4,6 +4,9 @@
 *.vos
 *.vok
 .*.aux
+.*.cache
+
+*imp*.ml*
 
 # Editor backup files
 *~

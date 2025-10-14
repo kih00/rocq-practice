@@ -18,3 +18,5 @@ series.
 
   - LICENSE
     Explanation of how these files may be redistributed
+
+순서: Basics -> Induction -> Lists -> Poly -> Tactics -> Logic -> IndProp -> Maps

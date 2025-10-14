@@ -68,6 +68,12 @@ Proof.
   intros n m eq1 eq2.
   apply eq2. apply eq1.  Qed.
 
+(** SF 0930. erewrite 키워드 *)
+(* erewrite와 eapply는 기본 전술 rewrite와 apply의
+existential variable (evar) 지원 버전입니다.
+부분적인/미완성된 식에도 rewrite, apply를 적용할 수 있고 빈 부분은
+existential variable (?x 이런 식)으로 바꿔줌. *)
+
 (** **** Exercise: 2 stars, standard, optional (silly_ex)
 
     Complete the following proof using only [intros] and [apply]. *)
@@ -99,6 +105,8 @@ Proof.
       and right sides of an equality in the goal. *)
 
   symmetry. apply H.  Qed.
+
+(** SF 0930. symmetry in H를 해도 됨. 이러면 H 안의 두 항이 바뀜 *)
 
 (** **** Exercise: 2 stars, standard (apply_exercise1)
 
@@ -169,6 +177,8 @@ Proof.
 
   apply trans_eq with (y:=[c;d]).
   apply eq1. apply eq2.   Qed.
+
+(** SF 0930. 위의 apply trans_eq ...를 eapply trans eq.로 바꿔도 됨. *)
 
 (** Actually, the name [y] in the [with] clause is not required,
     since Coq is often smart enough to figure out which variable we
@@ -276,13 +286,46 @@ Proof.
   rewrite H1. rewrite H2. reflexivity.
 Qed.
 
+(** SF 0930. 보통 inversion이 더 강력해서 inversion을 많이 씀. *)
+Theorem injection_ex1' : forall (n m o : nat),
+  [n;m] = [o;o] ->
+  n = m.
+Proof.
+  intros n m o H.
+  (* WORKED IN CLASS *)
+  inversion H. subst.
+  reflexivity.
+Qed.
+(* 보통 subst와 같이 inversion H; subst. 이렇게 써서
+필요 없는 변수들을 모두 정리해주는 방식으로 사용
+inversion은 injection에 기본적인 substitution까지 다 해주므로 더 강력함
+inversion_clear도 비슷하게 가정들을 날려주는 tactic인데
+가끔 필요한 가정도 날릴 수 있음. 반면 inversion H; subst.는 안전함 *)
+
 (** **** Exercise: 3 stars, standard (injection_ex3) *)
 Example injection_ex3 : forall (X : Type) (x y z : X) (l j : list X),
   x :: y :: l = z :: j ->
   j = z :: l ->
   x = y.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* FILL IN HERE *)
+  intros X x y z l j H1 H2.
+  rewrite H2 in H1.
+  injection H1 as Hx Hy.
+  rewrite Hx. rewrite Hy. reflexivity.
+Qed.
+
+(* inversion 풀이. *)
+Example injection_ex3' : forall (X : Type) (x y z : X) (l j : list X),
+  x :: y :: l = z :: j ->
+  j = z :: l ->
+  x = y.
+Proof.
+  (* FILL IN HERE *)
+  intros X x y z l j H H1.
+  rewrite H1 in H.
+  inversion H; subst. reflexivity.
+Qed.
 (** [] *)
 
 (** So much for injectivity of constructors.  What about disjointness? *)
@@ -305,11 +348,21 @@ Theorem discriminate_ex1 : forall (n m : nat),
 Proof.
   intros n m contra. discriminate contra. Qed.
 
+(** SF 1002. 뭔지 모르겠는데 관련 있는 이야기같음... *)
+Definition my_eq_ind (A : Type) (x : A) (P : A -> Prop) (f : P x)
+(y : A) (e : x = y) : P y :=
+  match e in (_ = a0) return (P a0) with
+  | eq_refl => f
+  end.
+(* eq_ind에서 하는 이야기: x = y이면, x에 대한 모든 성질은 y에 대한 성질이다. *)
+
 Theorem discriminate_ex2 : forall (n : nat),
   S n = O ->
   2 + 2 = 5.
 Proof.
   intros n contra. discriminate contra. Qed.
+
+(** SF 1002. discriminate 말고 inversion contra도 가능 *)
 
 (** These examples are instances of a logical principle known as the
     _principle of explosion_, which asserts that a contradictory
@@ -466,6 +519,19 @@ Proof.
   specialize H with (m := 1).
   rewrite mult_1_l in H.
   apply H. Qed.
+
+
+(** SF 1001. specialize는 잘못 쓰면 증명이 막힐 수 있으니 조심하기 *)
+Theorem specialize_example': forall n,
+     (forall m, m*n = 0)
+  -> n = 0.
+Proof.
+  intros n H.
+  assert (H1 := H). (* 카피하기 *)
+  specialize H with (m := 0). (* 이것만 써서 아래처럼 증명하려고 하면 막힘 *)
+  specialize (H1 1) as X. (* 이런 식으로도 가능, as X: 기존 가정 유지하고 따로 빼기 *)
+  simpl in H.
+Abort.
 
 (** Using [specialize] before [apply] gives us yet another way to
     control where [apply] does its work. *)
@@ -632,6 +698,8 @@ Proof.
 
       apply IHn'. simpl in eq. injection eq as goal. apply goal. Qed.
 
+(** SF 1002. 위의 풀이에서 injection 말고 inversion eq; subst. 써도 됨(보통 inversion 쓰니까) *)
+
 (** The thing to take away from all this is that you need to be
     careful, when using induction, that you are not trying to prove
     something too specific: When proving a property quantified over
@@ -725,6 +793,10 @@ Proof.
     + (* n = O *) discriminate eq.
     + (* n = S n' *) f_equal.
       apply IHm'. injection eq as goal. apply goal. Qed.
+
+(** SF 1002.
+ 위의 generalize dependent n은 revert n이랑 같으므로
+ 손가락 보호를 위해 revert를 쓸 수 있으면 쓸 것. *)
 
 (** Let's look at an informal proof of this theorem.  Note that
     the proposition we prove by induction leaves [n] quantified,
@@ -838,6 +910,12 @@ Proof.
   intros n m.
   simpl.
 
+(** SF 1002. 변덕쟁이 simpl. *)
+(* simpl은 자기 이름값을 하는 친구이기 때문에,
+자기가 보기에 simple해지지 않고 complex해질 것 같으면 식을 까지를 않음.
+(= 까봐도 simplify할 게 없으면 안 깐다는 의미)
+그럴 때 강제로 unfold를 하면 simpl 친구가 싫어하든 말든 식을 깔 수 있다! *)
+
 (** ...we appear to be stuck: [simpl] doesn't simplify anything, and
     since we haven't proved any other facts about [square], there is
     nothing we can [apply] or [rewrite] with. *)
@@ -858,6 +936,10 @@ Proof.
     { rewrite mul_comm. apply mult_assoc. }
   rewrite H. rewrite mult_assoc. reflexivity.
 Qed.
+
+(** SF 1002. rewrite! *)
+(* H로 rewrite할 때, 식에서 재작성 가능한 모든 부분에 H를 쓰고 싶으면
+rewrite !H. 이런 식으로 쓰면 됨. 중요!!! *)
 
 (** At this point, a bit deeper discussion of unfolding and
     simplification is in order.
@@ -970,6 +1052,16 @@ Proof.
     - (* n =? 3 = false *) destruct (n =? 5) eqn:E2.
       + (* n =? 5 = true *) reflexivity.
       + (* n =? 5 = false *) reflexivity.  Qed.
+
+(** SF 1002. destruct on compound expression의 주의점 *)
+(* 이름으로 쓸 때는 문제가 덜한데, compound expression은 destruct를
+써버리면 원래 그 expression이 날아가서 문제가 될 수 있음
+그래서 꼭 eqn:...을 써서 정보를 보존해주는 게 좋음. *)
+
+(** SF 1002. remember *)
+(* remember A as B로 하면 A와 똑같은 내용을 가진 B가 새로 생김
+둘이 같다는 식도 하나 생김.
+remember의 반대는 subst라고 생각하면 될 듯. *)
 
 (** After unfolding [sillyfun] in the above proof, we find that
     we are stuck on [if (n =? 3) then ... else ...].  But either
