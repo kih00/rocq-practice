@@ -132,6 +132,10 @@ Definition examplemap :=
   t_update (t_update (t_empty false) "foo" true)
            "bar" true.
 
+(** SF 1104. *)
+(* Open Scope string.
+Compute (examplemap "foo"). *)
+
 (** Next, let's introduce some notations to facilitate working with
     maps. *)
 

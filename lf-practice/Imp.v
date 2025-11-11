@@ -193,6 +193,9 @@ Proof. reflexivity. Qed.
 Theorem optimize_0plus_sound: forall a,
   aeval (optimize_0plus a) = aeval a.
 Proof.
+  (** SF 1104. 한줄컷(try로 알아서 하도록 자동화) *)
+  (* intros a. induction a;try destruct a1; try destruct n; simpl in *; try rewrite IHa1; rewrite ?IHa2; eauto. *)
+
   intros a. induction a.
   - (* ANum *) reflexivity.
   - (* APlus *) destruct a1 eqn:Ea1.
@@ -912,8 +915,28 @@ Inductive aevalR : aexp -> nat -> Prop :=
   | E_ADiv (a1 a2 : aexp) (n1 n2 n3 : nat) :          (* <----- NEW *)
       (a1 ==> n1) -> (a2 ==> n2) -> (n2 > 0) ->
       (mult n2 n3 = n1) -> (ADiv a1 a2) ==> n3
+(** SF 1104. 위의 정의는 나누어떨어지는 나눗셈에 대해서만 통과시킴. *)
+(* 그냥 나눗셈(몫)을 판정하려면 ... -> (n2 * n3 <= n1) -> (n1 - n2 * n3 < n2) -> ...  이렇게 하면 됨 *)
 
 where "a '==>' n" := (aevalR a n) : type_scope.
+
+(** SF 1104. 나누기를 포함한 aeval을 모나드 없이 정의한다 하면 이런 식... *)
+(* Fixpoint aeval (a : aexp) : option nat :=
+  match a with
+  | ANum n => n
+  | APlus  a1 a2 => ...
+  | AMinus a1 a2 => ...
+  | AMult  a1 a2 => ...
+  | ADiv   a1 a2 =>
+      match aeval a2 with
+      | None => None
+      | Some 0 => None
+      | Some n2 => match aeval a1 with
+                   | None => None
+                   | Some n1 => (n1 / n2)
+                   end
+      end
+  end. *)
 
 (** Notice that this evaluation relation corresponds to a _partial_
     function: There are some inputs for which it does not specify an
@@ -1536,6 +1559,30 @@ Inductive ceval : com -> state -> state -> Prop :=
       st  =[ while b do c end ]=> st''
 
   where "st =[ c ]=> st'" := (ceval c st st').
+
+(** SF 1106. halting problem *)
+Definition terminate (c: com) (st: state) : Prop :=
+  exists st', ceval c st st'.
+
+(* Axiom encode: com -> nat.
+Axiom encode_injective:
+  forall c1 c2, encode c1 = encode c2 -> c1 = c2. *)
+
+Open Scope string.
+
+Theorem hatling_problem
+  (encode: com -> nat)
+  (INJECTIVE: forall c1 c2, encode c1 = encode c2 -> c1 = c2)
+  :
+  ~ exists halt_check: com,
+  forall c,
+  exists st_out,
+     ("IN" !-> encode c) =[ halt_check ]=> st_out /\
+     (st_out "OUT" = 1) <-> terminate c empty_st.
+Proof.
+  intros [P P_halts].
+Admitted. (** 교수님의 깜짝과?제?!!! *)
+
 
 (** The cost of defining evaluation as a relation instead of a
     function is that we now need to construct a _proof_ that some
